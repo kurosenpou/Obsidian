@@ -68,28 +68,18 @@ class MaterialsBERTClient:
     """MaterialsBERT - 材料科学特化BERTモデル（ローカル版）"""
     
     def __init__(self, model_path: str = "./models/matscibert"):
-        # GPU強制使用設定
-        print(f"MaterialsBERT Debug: torch.cuda.is_available() = {torch.cuda.is_available()}")
-        if torch.cuda.is_available():
-            print(f"MaterialsBERT Debug: GPU detected = {torch.cuda.get_device_name()}")
-        
-        if not torch.cuda.is_available():
-            raise RuntimeError("❌ GPU not available! This application requires CUDA-capable GPU.")
-        
-        self.device = "cuda"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_path = model_path
         self.model = None
         self.tokenizer = None
         self.is_loaded = False
         
-        # GPU情報表示
-        self.use_gpu = True
-        print(f"🚀 GPU FORCED MODE: {torch.cuda.get_device_name()}")
-        print(f"� GPU Memory: {torch.cuda.get_device_properties(0).total_memory // (1024**3)}GB")
-        
-        # GPU メモリをクリア
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # GPU使用可能性チェック
+        self.use_gpu = torch.cuda.is_available()
+        if self.use_gpu:
+            print(f"🚀 GPU detected: {torch.cuda.get_device_name()}")
+        else:
+            print("⚠️ CPU mode - MaterialsBERT works well on CPU")
         
         # ローカルモデルの存在確認
         if not os.path.exists(model_path):
@@ -121,16 +111,14 @@ class MaterialsBERTClient:
                         self.tokenizer = BertTokenizer.from_pretrained(self.model_path)
                         self.model = BertForMaskedLM.from_pretrained(
                             self.model_path,
-                            torch_dtype=torch.float16,
-                            device_map="auto"
+                            torch_dtype=torch.float16 if self.use_gpu else torch.float32
                         ).to(self.device)
                     except Exception as e:
                         print(f"⚠️ Local MaterialsBERT failed ({e}), using online version...")
                         self.tokenizer = BertTokenizer.from_pretrained("pranav-s/MaterialsBERT")
                         self.model = BertForMaskedLM.from_pretrained(
                             "pranav-s/MaterialsBERT",
-                            torch_dtype=torch.float16,
-                            device_map="auto"
+                            torch_dtype=torch.float16 if self.use_gpu else torch.float32
                         ).to(self.device)
                 else:
                     # Fallback to online
@@ -138,8 +126,7 @@ class MaterialsBERTClient:
                     self.tokenizer = BertTokenizer.from_pretrained("pranav-s/MaterialsBERT")
                     self.model = BertForMaskedLM.from_pretrained(
                         "pranav-s/MaterialsBERT",
-                        torch_dtype=torch.float16,
-                        device_map="auto"
+                        torch_dtype=torch.float16 if self.use_gpu else torch.float32
                     ).to(self.device)
                     
             else:
@@ -149,16 +136,14 @@ class MaterialsBERTClient:
                     self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
                     self.model = AutoModel.from_pretrained(
                         self.model_path,
-                        torch_dtype=torch.float16,
-                        device_map="auto"
+                        torch_dtype=torch.float16 if self.use_gpu else torch.float32
                     ).to(self.device)
                 else:
                     # Fallback to online
                     self.tokenizer = AutoTokenizer.from_pretrained("m3rg-iitd/matscibert")
                     self.model = AutoModel.from_pretrained(
                         "m3rg-iitd/matscibert",
-                        torch_dtype=torch.float16,
-                        device_map="auto"
+                        torch_dtype=torch.float16 if self.use_gpu else torch.float32
                     ).to(self.device)
             
             # Create fill-mask pipeline for BertForMaskedLM models
@@ -169,7 +154,7 @@ class MaterialsBERTClient:
                         "fill-mask",
                         model=self.model,
                         tokenizer=self.tokenizer,
-                        device=0  # GPU device 0
+                        device=0 if self.use_gpu else -1
                     )
                 else:
                     self.fill_mask = None
@@ -485,74 +470,38 @@ class Llama3Client:
     """Llama3ローカル実行クライアント"""
     
     def __init__(self, model_name: str = "meta-llama/Meta-Llama-3-8B-Instruct"):
-        # GPU強制使用設定
-        print(f"Llama3 Debug: torch.cuda.is_available() = {torch.cuda.is_available()}")
-        if torch.cuda.is_available():
-            print(f"Llama3 Debug: GPU detected = {torch.cuda.get_device_name()}")
-        
-        if not torch.cuda.is_available():
-            raise RuntimeError("❌ GPU not available! Llama3 requires CUDA-capable GPU for optimal performance.")
-        
-        self.device = "cuda"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model_name = model_name
         self.model = None
         self.tokenizer = None
         self.is_loaded = False
         
-        # GPU情報表示
-        self.use_gpu = True
-        print(f"🚀 Llama3 GPU FORCED MODE: {torch.cuda.get_device_name()}")
-        gpu_memory = torch.cuda.get_device_properties(0).total_memory // (1024**3)
-        print(f"� GPU Memory: {gpu_memory}GB")
-        
-        if gpu_memory < 8:
-            print("⚠️ Warning: Less than 8GB VRAM detected. Llama3 may require aggressive quantization.")
-        
-        # GPU メモリをクリア
-        torch.cuda.empty_cache()
-    
-    def check_hf_token(self) -> tuple[bool, str]:
-        """Hugging Face トークンの確認と案内"""
-        hf_token = os.getenv('HF_TOKEN')
-        if not hf_token:
-            message = """
-❌ HF_TOKEN environment variable not set.
-
-📝 **Setup Instructions (after Meta approval):**
-1. Go to https://huggingface.co/settings/tokens
-2. Create a new token with 'Read' permissions
-3. Set environment variable: HF_TOKEN=your_token_here
-4. Restart this application
-
-💡 **Alternative setup methods:**
-- Windows: set HF_TOKEN=your_token in command prompt
-- PowerShell: $env:HF_TOKEN="your_token"
-- .env file: HF_TOKEN=your_token
-"""
-            return False, message
+        # GPU使用可能性チェック
+        self.use_gpu = torch.cuda.is_available()
+        if self.use_gpu:
+            print(f"🚀 GPU detected: {torch.cuda.get_device_name()}")
         else:
-            return True, "✅ HF_TOKEN found - ready to load Llama3!"
+            print("⚠️ CPU mode - Consider using smaller model")
     
     def load_model(self):
         """モデルとトークナイザーを読み込み"""
         try:
-            # トークン確認
-            has_token, token_message = self.check_hf_token()
-            if not has_token:
-                print(token_message)
+            # Hugging Faceトークン設定 - 環境変数のみ使用
+            hf_token = os.getenv('HF_TOKEN')
+            if not hf_token:
+                print("⚠️ HF_TOKEN environment variable not set. Llama3 requires Hugging Face token.")
                 return False
             
-            hf_token = os.getenv('HF_TOKEN')
-            print("🔑 Using HF_TOKEN for Llama3 access...")
-            
-            # GPU専用4-bit量子化設定
-            print("⚙️ Setting up 4-bit quantization for GPU...")
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
-            )
+            # 4-bit量子化設定（GPU使用時）
+            if self.use_gpu:
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4"
+                )
+            else:
+                quantization_config = None
             
             # トークナイザー読み込み
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -563,12 +512,11 @@ class Llama3Client:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             
             # モデル読み込み
-            print("🔧 Loading Llama3 model to GPU...")
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 quantization_config=quantization_config,
-                torch_dtype=torch.float16,
-                device_map="auto",  # 自動GPU配置
+                torch_dtype=torch.float16 if self.use_gpu else torch.float32,
+                device_map="auto" if self.use_gpu else None,
                 trust_remote_code=True,
                 token=hf_token
             )
@@ -590,35 +538,14 @@ class Llama3Client:
         # 材料科学特化プロンプト
         system_prompt = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
-You are an expert materials scientist and researcher specializing in:
-
-**Core Expertise:**
+You are an expert materials scientist specializing in:
 - Thermomechanics and Taylor-Quinney coefficient research
-- Plastic deformation mechanisms in crystalline materials
-- Mechanical properties, testing, and characterization
-- Phase diagrams, microstructure, and processing
-- Computational materials science and modeling
+- Plastic deformation mechanisms in metals
+- Mechanical properties and characterization
+- Experimental techniques in materials testing
+- Computational materials science
 
-**Research Focus:**
-- Structure-property relationships
-- Experimental techniques (XRD, SEM, TEM, EBSD)
-- Multi-scale modeling (atomistic to continuum)
-- Advanced materials (composites, nanomaterials, smart materials)
-
-**Communication Style:**
-- Provide detailed, technical responses with scientific rigor
-- Use proper materials science terminology
-- Include quantitative data when relevant (properties, compositions, etc.)
-- Reference established theories and principles
-- Suggest experimental approaches when appropriate
-
-**Response Format:**
-- Start with key concepts or definitions
-- Provide technical details and mechanisms
-- Include practical implications or applications
-- End with experimental considerations or further research directions
-
-Remember: You're helping a researcher, so be thorough and scientifically accurate.<|eot_id|>
+Provide detailed, technical responses based on scientific principles. Use proper terminology and cite relevant concepts when appropriate.<|eot_id|>
 
 <|start_header_id|>user<|end_header_id|>
 {user_prompt}<|eot_id|>
@@ -767,29 +694,7 @@ def show_chat_interface():
         st.session_state.messages = []
     
     if "ai_client" not in st.session_state:
-        try:
-            # GPU状態の詳細チェック
-            gpu_available = torch.cuda.is_available()
-            st.write(f"Debug: CUDA Available: {gpu_available}")
-            if gpu_available:
-                gpu_name = torch.cuda.get_device_name()
-                gpu_count = torch.cuda.device_count()
-                st.write(f"Debug: GPU: {gpu_name}, Count: {gpu_count}")
-            
-            st.session_state.ai_client = SimpleAIClient()
-        except RuntimeError as e:
-            st.error(f"🚫 GPU Initialization Error: {e}")
-            st.error("Please ensure you have a CUDA-capable GPU and proper drivers installed.")
-            
-            # デバッグ情報を追加
-            st.write("**Debug Information:**")
-            st.write(f"- CUDA Available: {torch.cuda.is_available()}")
-            st.write(f"- PyTorch Version: {torch.__version__}")
-            if torch.cuda.is_available():
-                st.write(f"- GPU Name: {torch.cuda.get_device_name()}")
-                st.write(f"- GPU Count: {torch.cuda.device_count()}")
-                st.write(f"- CUDA Version: {torch.version.cuda}")
-            st.stop()
+        st.session_state.ai_client = SimpleAIClient()
     
     # AI モデルコントロールパネル
     with st.sidebar:
@@ -797,14 +702,10 @@ def show_chat_interface():
         
         # GPU情報表示
         if torch.cuda.is_available():
-            st.success(f"🚀 GPU FORCED MODE: {torch.cuda.get_device_name()}")
-            gpu_memory = torch.cuda.get_device_properties(0).total_memory // 1024**3
-            st.info(f"💾 Memory: {gpu_memory}GB")
-            st.info("⚡ All models will use GPU acceleration")
+            st.success(f"🚀 GPU: {torch.cuda.get_device_name()}")
+            st.info(f"Memory: {torch.cuda.get_device_properties(0).total_memory // 1024**3}GB")
         else:
-            st.error("❌ GPU Required!")
-            st.error("This application requires CUDA-capable GPU")
-            st.stop()  # アプリケーションを停止
+            st.warning("⚠️ CPU mode")
         
         # MaterialsBERT セクション
         st.subheader("🔬 MaterialsBERT")
@@ -849,13 +750,8 @@ def show_chat_interface():
         
         # Llama3 セクション
         st.subheader("🦙 Llama3")
-        
-        # トークン状態確認
-        has_token, token_message = st.session_state.ai_client.llama3_client.check_hf_token()
-        
         if st.session_state.ai_client.is_llama3_loaded:
             st.success("✅ Llama3 loaded")
-            st.info("🎯 Ready for advanced materials science conversations!")
             if st.button("🗑️ Unload Llama3"):
                 with st.spinner("Unloading Llama3..."):
                     st.session_state.ai_client.llama3_client.unload_model()
@@ -863,24 +759,14 @@ def show_chat_interface():
                 st.rerun()
         else:
             st.warning("⚠️ Llama3 not loaded")
-            
-            # トークン状態表示
-            if has_token:
-                st.info("🔑 HF_TOKEN detected - ready to load!")
-                if st.button("🚀 Load Llama3 Model"):
-                    with st.spinner("Loading Llama3... (this may take a few minutes)"):
-                        success = st.session_state.ai_client.load_llama3()
-                    if success:
-                        st.success("✅ Llama3 loaded successfully!")
-                        st.balloons()  # 成功祝い
-                        st.rerun()
-                    else:
-                        st.error("❌ Failed to load Llama3")
-            else:
-                st.error("🔑 HF_TOKEN required")
-                with st.expander("📝 Token Setup Guide"):
-                    st.markdown(token_message)
-                    st.info("💡 **Detailed Setup Guide**: See `setup_llama3.md` in the project folder for complete instructions.")
+            if st.button("🚀 Load Llama3 Model"):
+                with st.spinner("Loading Llama3... (requires Meta approval & HF_TOKEN)"):
+                    success = st.session_state.ai_client.load_llama3()
+                if success:
+                    st.success("✅ Llama3 loaded!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to load Llama3 (check HF_TOKEN env var)")
         
         # モデル選択
         st.markdown("---")
@@ -1040,27 +926,22 @@ def show_about():
         """)
     
     with col2:
-        st.subheader("🚀 Quick Start (Post-Approval)")
+        st.subheader("🚀 Quick Start")
         st.markdown("""
-        1. **Setup**: Set HF_TOKEN environment variable
-        2. **MaterialsBERT**: Load for specialized knowledge
-        3. **Llama3**: Load for conversational AI
-        4. **Chat**: Ask complex materials science questions
-        5. **PDF**: Upload and analyze research papers
+        1. **Select**: Choose MaterialsBERT model (m3rg-iitd or pranav-s)
+        2. **Load**: Load MaterialsBERT (no token required)
+        3. **Chat**: Ask materials science questions
+        4. **Upload**: Process PDF documents
+        5. **Llama3**: Set HF_TOKEN env var for access
         """)
         
         st.subheader("🤖 Model Comparison")
         st.markdown("""
-        **MaterialsBERT**: Domain-specific, fast responses
-        **Llama3**: Conversational, creative, contextual
-        **Combined**: Best of both worlds - expertise + flexibility
-        
-        💡 **Tip**: Enable both for comprehensive analysis!
+        **m3rg-iitd/matscibert**: General materials science
+        **pranav-s/MaterialsBERT**: Specialized variant
+        **Llama3**: Creative generation, conversational
+        **Combination**: Comprehensive materials expertise
         """)
-        
-        # Llama3許可取得の祝い
-        st.success("🎉 Congratulations on getting Llama3 access!")
-        st.info("You now have access to one of the most advanced AI models for materials science research.")
     
     # システム情報
     st.markdown("---")
