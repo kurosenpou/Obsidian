@@ -1,0 +1,13 @@
+# Obsidian AI MVP - 最小限の依存関係
+
+# Core Web UI
+streamlit
+
+# PDF Processing
+PyPDF2
+
+# Optional AI (OpenAI API)
+openai
+
+# Basic utilities
+pathlib
