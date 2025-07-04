@@ -53,6 +53,11 @@ uploaded_docs/
 *.log
 .streamlit/
 
+# Large model files (download locally as needed)
+models/
+*.bin
+*.safetensors
+
 # API keys
 .env.local
 .env.production
