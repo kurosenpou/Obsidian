@@ -9,5 +9,12 @@ PyPDF2
 # Optional AI (OpenAI API)
 openai
 
+# Machine Learning / Transformers
+torch
+torchvision
+transformers
+accelerate
+bitsandbytes
+
 # Basic utilities
 pathlib

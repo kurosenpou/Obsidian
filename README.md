@@ -9,16 +9,19 @@ Obsidian AI Agentは材料科学研究に特化したAIアシスタントのMVP�
 ## ✨ 主要機能
 
 - **💬 AI Chat Interface**: ChatGPT風のクリーンなチャット機能
+- **🤖 Multiple AI Models**: Llama3, MaterialsBERT, matscibert対応
 - **📁 PDF Upload**: PDF文書のテキスト抽出・処理
 - **🔧 Demo Mode**: APIキーなしでも動作するデモモード
 - **🎨 Clean UI**: 直感的で美しいStreamlit UI
 - **🔑 OpenAI Integration**: オプションのGPT-3.5連携
+- **🧪 Materials Science**: 材料科学特化のBERTモデル
 
 ## 🚀 クイックスタート
 
 ### 必要な環境
 - Python 3.8以上
 - OpenAI API key（オプション）
+- HuggingFace token（オプション、高速ダウンロード用）
 
 ### インストール & 実行
 ```bash
@@ -36,20 +39,34 @@ start_mvp.bat
 ```bash
 # OpenAI APIを使用する場合
 export OPENAI_API_KEY="your_api_key_here"
+
+# HuggingFace token（高速ダウンロード用）
+export HF_TOKEN="your_huggingface_token"
 ```
+
+### AI Models Setup
+モデルの詳細なセットアップ方法は [MODEL_SETUP.md](MODEL_SETUP.md) を参照してください。
+
+- **自動ダウンロード**: 初回使用時に自動でモデルをダウンロード
+- **ローカルセットアップ**: オフライン使用と高速化のため推奨
+- **GPU対応**: CUDA使用可能時は自動でGPUを使用
 
 ## 📊 技術仕様
 
 ### アーキテクチャ
 - **Frontend**: Streamlit（Web UI）
-- **AI Backend**: OpenAI GPT-3.5-turbo（オプション）
+- **AI Backend**: 
+  - OpenAI GPT-3.5-turbo（オプション）
+  - Llama3（ローカル/API）
+  - MaterialsBERT（材料科学特化）
+  - matscibert（材料科学特化）
 - **PDF Processing**: PyPDF2
 - **Storage**: ローカルファイルシステム
 
 ### パフォーマンス
-- **起動時間**: ~3秒
-- **メモリ使用量**: ~50MB
-- **依存関係**: 4パッケージのみ
+- **起動時間**: ~5秒（モデル未ロード時）
+- **メモリ使用量**: ~200MB-2GB（使用モデルによる）
+- **依存関係**: Transformers, PyTorch等
 - **ファイルサイズ**: ~15KB
 
 ## 🎮 使用方法
@@ -72,10 +89,17 @@ export OPENAI_API_KEY="your_api_key_here"
 ```
 Obsidian/
 ├── app_mvp.py              # メインアプリケーション
-├── requirements_mvp.txt    # 最小限の依存関係
+├── requirements_mvp.txt    # 依存関係リスト
 ├── start_mvp.bat          # Windows用起動スクリプト
+├── README.md              # このファイル
 ├── README_MVP.md          # 詳細なMVPドキュメント
+├── MODEL_SETUP.md         # AI モデルセットアップガイド
 ├── QUICKSTART.md          # 2ステップ起動ガイド
+├── GITHUB_SETUP.md        # GitHubセットアップガイド
+├── .gitignore             # Git除外設定（モデルファイル除外）
+├── models/                # AIモデル（ローカルダウンロード、git除外）
+│   ├── matscibert/       # m3rg-iitd/matscibert
+│   └── MaterialsBERT/    # pranav-s/MaterialsBERT
 └── LICENSE                # ライセンス情報
 ```
 
